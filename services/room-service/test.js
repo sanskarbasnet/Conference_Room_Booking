@@ -76,12 +76,12 @@ async function runTests() {
 
   // Test 2: Get All Locations
   let locationId = '';
-  await testEndpoint('Get All Locations', async () => {
+  const locationData = await testEndpoint('Get All Locations', async () => {
     try {
       const response = await axios.get(`${BASE_URL}/locations`, { timeout: TEST_TIMEOUT });
       if (response.data.data && Array.isArray(response.data.data)) {
         if (response.data.data.length > 0) {
-          locationId = response.data.data[0]._id;
+          locationId = String(response.data.data[0]._id); // Convert to string for consistency
           return {
             success: true,
             details: `${response.data.data.length} locations found`,
@@ -104,14 +104,22 @@ async function runTests() {
       throw error;
     }
   });
+  
+  // Update locationId from returned data if available
+  if (locationData && locationData.locationId) {
+    locationId = String(locationData.locationId);
+  }
 
   // Test 3: Get Location by ID
   if (locationId) {
     await testEndpoint('Get Location by ID', async () => {
       try {
         const response = await axios.get(`${BASE_URL}/locations/${locationId}`, { timeout: TEST_TIMEOUT });
+        // Convert both IDs to strings for comparison (MongoDB ObjectIds can be objects or strings)
+        const responseId = String(response.data.data?._id || '');
+        const expectedId = String(locationId);
         return {
-          success: response.data.success && response.data.data && response.data.data._id === locationId,
+          success: response.data.success && response.data.data && responseId === expectedId,
           details: response.data.data?.name || 'Location found'
         };
       } catch (error) {
@@ -125,12 +133,12 @@ async function runTests() {
 
   // Test 4: Get All Rooms
   let roomId = '';
-  await testEndpoint('Get All Rooms', async () => {
+  const roomData = await testEndpoint('Get All Rooms', async () => {
     try {
       const response = await axios.get(`${BASE_URL}/rooms`, { timeout: TEST_TIMEOUT });
       if (response.data.data && Array.isArray(response.data.data)) {
         if (response.data.data.length > 0) {
-          roomId = response.data.data[0]._id;
+          roomId = String(response.data.data[0]._id); // Convert to string for consistency
           return {
             success: true,
             details: `${response.data.data.length} rooms found`,
@@ -153,14 +161,22 @@ async function runTests() {
       throw error;
     }
   });
+  
+  // Update roomId from returned data if available
+  if (roomData && roomData.roomId) {
+    roomId = String(roomData.roomId);
+  }
 
   // Test 5: Get Room by ID
   if (roomId) {
     await testEndpoint('Get Room by ID', async () => {
       try {
         const response = await axios.get(`${BASE_URL}/rooms/${roomId}`, { timeout: TEST_TIMEOUT });
+        // Convert both IDs to strings for comparison (MongoDB ObjectIds can be objects or strings)
+        const responseId = String(response.data.data?._id || '');
+        const expectedId = String(roomId);
         return {
-          success: response.data.success && response.data.data && response.data.data._id === roomId,
+          success: response.data.success && response.data.data && responseId === expectedId,
           details: response.data.data?.name || 'Room found'
         };
       } catch (error) {
