@@ -64,6 +64,16 @@ jobs:
           done
           echo "Services should be ready now"
 
+      - name: Seed Database
+        env:
+          MONGODB_URI: mongodb://localhost:27017/conference_booking
+        run: |
+          echo "Seeding database with test data..."
+          cd scripts
+          npm ci || npm install
+          node seed.js
+          echo "Database seeded successfully"
+
       - name: Test Auth Service
         working-directory: ./services/auth-service
         run: |
