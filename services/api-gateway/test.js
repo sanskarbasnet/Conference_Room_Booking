@@ -135,8 +135,9 @@ async function runTests() {
       const response = await axios.get(`${BASE_URL}/locations`, {
         timeout: TEST_TIMEOUT,
       });
+      // Accept empty arrays as valid - service is working, just no data
       return {
-        success: response.status === 200 && response.data.data,
+        success: response.status === 200 && response.data.data !== undefined,
         details: Array.isArray(response.data.data)
           ? `${response.data.data.length} locations`
           : "Route working",

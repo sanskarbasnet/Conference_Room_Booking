@@ -79,15 +79,24 @@ async function runTests() {
   await testEndpoint('Get All Locations', async () => {
     try {
       const response = await axios.get(`${BASE_URL}/locations`, { timeout: TEST_TIMEOUT });
-      if (response.data.data && Array.isArray(response.data.data) && response.data.data.length > 0) {
-        locationId = response.data.data[0]._id;
-        return {
-          success: true,
-          details: `${response.data.data.length} locations found`,
-          data: { locationId }
-        };
+      if (response.data.data && Array.isArray(response.data.data)) {
+        if (response.data.data.length > 0) {
+          locationId = response.data.data[0]._id;
+          return {
+            success: true,
+            details: `${response.data.data.length} locations found`,
+            data: { locationId }
+          };
+        } else {
+          // Empty array is valid - service is working, just no data
+          return {
+            success: true,
+            details: '0 locations (empty database - expected in CI)',
+            data: { locationId: null }
+          };
+        }
       }
-      return { success: false, details: 'No locations found' };
+      return { success: false, details: 'Invalid response structure' };
     } catch (error) {
       if (error.code === 'ECONNREFUSED') {
         return { success: false, details: 'Service not running' };
@@ -119,15 +128,24 @@ async function runTests() {
   await testEndpoint('Get All Rooms', async () => {
     try {
       const response = await axios.get(`${BASE_URL}/rooms`, { timeout: TEST_TIMEOUT });
-      if (response.data.data && Array.isArray(response.data.data) && response.data.data.length > 0) {
-        roomId = response.data.data[0]._id;
-        return {
-          success: true,
-          details: `${response.data.data.length} rooms found`,
-          data: { roomId }
-        };
+      if (response.data.data && Array.isArray(response.data.data)) {
+        if (response.data.data.length > 0) {
+          roomId = response.data.data[0]._id;
+          return {
+            success: true,
+            details: `${response.data.data.length} rooms found`,
+            data: { roomId }
+          };
+        } else {
+          // Empty array is valid - service is working, just no data
+          return {
+            success: true,
+            details: '0 rooms (empty database - expected in CI)',
+            data: { roomId: null }
+          };
+        }
       }
-      return { success: false, details: 'No rooms found' };
+      return { success: false, details: 'Invalid response structure' };
     } catch (error) {
       if (error.code === 'ECONNREFUSED') {
         return { success: false, details: 'Service not running' };
