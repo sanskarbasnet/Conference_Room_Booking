@@ -97,10 +97,11 @@ router.use(
 router.use(
   '/notifications',
   createProxyMiddleware({
-    target: services.notification,
+    // Use base URL (without /notification) since we'll add /notification in pathRewrite
+    target: services.notification.replace('/notification', '') || services.notification,
     ...proxyOptions,
     pathRewrite: {
-      '^/notifications': '' // Remove /notifications prefix when forwarding
+      '^/notifications': '/notification' // Convert /notifications to /notification for load balancer routing
     }
   })
 );

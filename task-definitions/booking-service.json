@@ -1,33 +1,36 @@
 {
-    "family": "conference-booking-v2",
-    "networkMode": "awsvpc",
-    "requiresCompatibilities": ["FARGATE"],
-    "cpu": "256",
-    "memory": "512",
-    "executionRoleArn": "arn:aws:iam::997167341062:role/LabRole",
-    "taskRoleArn": "arn:aws:iam::997167341062:role/LabRole",
-    "containerDefinitions": [
-      {
-        "name": "booking-service",
-        "image": "997167341062.dkr.ecr.us-east-1.amazonaws.com/conference-v2/booking-service:latest",
-        "portMappings": [{"containerPort": 8003, "protocol": "tcp"}],
-        "environment": [
-          {"name": "PORT", "value": "8003"},
-          {"name": "MONGODB_URI", "value": "mongodb+srv://conferenceAdmin:vUIAzEKbHKAb6FrG@conference-booking-clus.m0nkkyl.mongodb.net/conference_booking?appName=conference-booking-cluster"},
-          {"name": "AUTH_SERVICE_URL", "value": "http://conference-alb-v2-649441908.us-east-1.elb.amazonaws.com/auth"},
-          {"name": "ROOM_SERVICE_URL", "value": "http://conference-alb-v2-649441908.us-east-1.elb.amazonaws.com/rooms"},
-          {"name": "WEATHER_SERVICE_URL", "value": "http://conference-alb-v2-649441908.us-east-1.elb.amazonaws.com/weather"},
-          {"name": "NOTIFICATION_SERVICE_URL", "value": "http://conference-alb-v2-649441908.us-east-1.elb.amazonaws.com/notification"}
-        ],
-        "logConfiguration": {
-          "logDriver": "awslogs",
-          "options": {
-            "awslogs-group": "/ecs/conference-booking-v2",
-            "awslogs-region": "us-east-1",
-            "awslogs-stream-prefix": "ecs",
-            "awslogs-create-group": "true"
-          }
+  "family": "conference-booking-v2",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::997167341062:role/LabRole",
+  "taskRoleArn": "arn:aws:iam::997167341062:role/LabRole",
+  "containerDefinitions": [
+    {
+      "name": "booking-service",
+      "image": "997167341062.dkr.ecr.us-east-1.amazonaws.com/conference-v2/booking-service:latest",
+      "portMappings": [{"containerPort": 8003, "protocol": "tcp"}],
+      "environment": [
+        {"name": "PORT", "value": "8003"},
+        {"name": "NODE_ENV", "value": "production"},
+        {"name": "MONGODB_URI", "value": "mongodb+srv://conferenceAdmin:vUIAzEKbHKAb6FrG@conference-booking-clus.m0nkkyl.mongodb.net/conference_booking?appName=conference-booking-cluster"},
+        {"name": "AUTH_SERVICE_URL", "value": "http://conference-alb-v2-649441908.us-east-1.elb.amazonaws.com/auth"},
+        {"name": "ROOM_SERVICE_URL", "value": "http://conference-alb-v2-649441908.us-east-1.elb.amazonaws.com/rooms"},
+        {"name": "WEATHER_SERVICE_URL", "value": "http://conference-alb-v2-649441908.us-east-1.elb.amazonaws.com/weather"},
+        {"name": "NOTIFICATION_SERVICE_URL", "value": "http://conference-alb-v2-649441908.us-east-1.elb.amazonaws.com/notification"},
+        {"name": "COMFORTABLE_TEMPERATURE", "value": "21"},
+        {"name": "PRICE_ADJUSTMENT_FACTOR", "value": "0.05"}
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/conference-booking-v2",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
         }
       }
-    ]
-  }
+    }
+  ]
+}

@@ -2,11 +2,13 @@ const express = require('express');
 const router = express.Router();
 const notificationController = require('../controllers/notificationController');
 
-// Send notification
+// Send notification (handle both /notify and /notification/notify)
 router.post('/notify', notificationController.sendNotification);
+router.post('/notification/notify', notificationController.sendNotification);
 
-// Test endpoint
-router.get('/notifications/test', notificationController.testNotification);
+// Test endpoint (handle both /test and /notification/test)
+router.get('/test', notificationController.testNotification);
+router.get('/notification/test', notificationController.testNotification);
 
 module.exports = router;
 

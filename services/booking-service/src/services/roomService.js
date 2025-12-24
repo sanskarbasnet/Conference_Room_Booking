@@ -7,7 +7,19 @@ const ROOM_SERVICE_URL = process.env.ROOM_SERVICE_URL || 'http://localhost:8002'
  */
 const getRoomById = async (roomId) => {
   try {
-    const response = await axios.get(`${ROOM_SERVICE_URL}/rooms/${roomId}`);
+    // Handle both cases: URL with /rooms and without
+    // If URL already ends with /rooms, just append /${roomId}
+    // Otherwise, append /rooms/${roomId}
+    let url;
+    if (ROOM_SERVICE_URL.endsWith('/rooms')) {
+      url = `${ROOM_SERVICE_URL}/${roomId}`;
+    } else {
+      url = `${ROOM_SERVICE_URL}/rooms/${roomId}`;
+    }
+    
+    const response = await axios.get(url, {
+      timeout: 30000 // 30 second timeout
+    });
     
     if (response.data.success) {
       return response.data.data;
@@ -18,7 +30,18 @@ const getRoomById = async (roomId) => {
     if (error.response?.status === 404) {
       throw new Error('Room not found');
     }
-    throw new Error(error.response?.data?.error || 'Failed to fetch room details');
+    // Log detailed error for debugging
+    const url = ROOM_SERVICE_URL.endsWith('/rooms') 
+      ? `${ROOM_SERVICE_URL}/${roomId}`
+      : `${ROOM_SERVICE_URL}/rooms/${roomId}`;
+    console.error('Room Service Error:', {
+      message: error.message,
+      code: error.code,
+      status: error.response?.status,
+      data: error.response?.data,
+      url: url
+    });
+    throw new Error(error.response?.data?.error || error.message || 'Failed to fetch room details');
   }
 };
 

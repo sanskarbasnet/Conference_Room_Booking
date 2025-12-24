@@ -17,7 +17,7 @@
         {"name": "ROOM_SERVICE_URL", "value": "http://conference-alb-v2-649441908.us-east-1.elb.amazonaws.com/rooms"},
         {"name": "BOOKING_SERVICE_URL", "value": "http://conference-alb-v2-649441908.us-east-1.elb.amazonaws.com/bookings"},
         {"name": "WEATHER_SERVICE_URL", "value": "http://conference-alb-v2-649441908.us-east-1.elb.amazonaws.com/weather"},
-        {"name": "NOTIFICATION_SERVICE_URL", "value": "http://conference-alb-v2-649441908.us-east-1.elb.amazonaws.com/notification"},
+        {"name": "NOTIFICATION_SERVICE_URL", "value": "http://conference-alb-v2-649441908.us-east-1.elb.amazonaws.com"},
         {"name": "JWT_SECRET", "value": "my-super-secret-jwt-key-change-in-production-12345"}
       ],
       "logConfiguration": {
