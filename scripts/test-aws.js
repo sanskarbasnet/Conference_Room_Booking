@@ -63,6 +63,60 @@ async function testEndpoint(name, testFn) {
   }
 }
 
+/**
+ * Find an available date for booking a room
+ * @param {string} roomId - Room ID to check
+ * @param {string} token - User authentication token
+ * @returns {Promise<string|null>} - Available date string (YYYY-MM-DD) or null
+ */
+async function findAvailableDate(roomId, token) {
+  try {
+    // Check availability for a range of dates (60-120 days in future)
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() + 60);
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + 120);
+    const startDateStr = startDate.toISOString().split("T")[0];
+    const endDateStr = endDate.toISOString().split("T")[0];
+
+    const availabilityResponse = await axios.get(
+      `${API_URL}/bookings/room/${roomId}/availability?startDate=${startDateStr}&endDate=${endDateStr}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 30000,
+      }
+    );
+
+    // Get booked dates
+    const bookedDates = availabilityResponse.data.bookedDates || [];
+
+    // Find first available date in the range
+    const checkDate = new Date(startDate);
+    while (checkDate <= endDate) {
+      const checkDateStr = checkDate.toISOString().split("T")[0];
+      if (!bookedDates.includes(checkDateStr)) {
+        return checkDateStr;
+      }
+      checkDate.setDate(checkDate.getDate() + 1);
+    }
+
+    // If no available date found in range, use a date far in the future (180+ days)
+    const farFutureDate = new Date();
+    farFutureDate.setDate(
+      farFutureDate.getDate() + 180 + Math.floor(Math.random() * 30)
+    );
+    return farFutureDate.toISOString().split("T")[0];
+  } catch (error) {
+    // If availability check fails, use a unique date based on timestamp
+    // This ensures we don't collide with existing bookings
+    const uniqueDate = new Date();
+    // Use timestamp-based offset to ensure uniqueness
+    const timestampOffset = Math.floor(Date.now() / (1000 * 60 * 60 * 24)); // Days since epoch
+    uniqueDate.setDate(uniqueDate.getDate() + 60 + (timestampOffset % 30)); // 60-90 days with uniqueness
+    return uniqueDate.toISOString().split("T")[0];
+  }
+}
+
 async function runTests() {
   console.log(
     "\n🚀 AWS Conference Room Booking System - Full Test Suite".cyan.bold
@@ -501,12 +555,6 @@ async function runTests() {
   // Create Booking
   if (testData.roomId && testData.userToken) {
     await testEndpoint("Create Booking", async () => {
-      const futureDate = new Date();
-      // Use random offset between 45-90 days to avoid duplicate bookings
-      const randomOffset = 45 + Math.floor(Math.random() * 45);
-      futureDate.setDate(futureDate.getDate() + randomOffset);
-      const dateStr = futureDate.toISOString().split("T")[0];
-
       // Ensure roomId is a string (not an object)
       const roomIdStr =
         typeof testData.roomId === "string"
@@ -514,6 +562,10 @@ async function runTests() {
           : testData.roomId._id ||
             testData.roomId.id ||
             String(testData.roomId);
+
+      // Find an available date by checking room availability
+      // This ensures we don't try to book a room that's already booked
+      const dateStr = await findAvailableDate(roomIdStr, testData.userToken);
 
       try {
         const response = await axios.post(
@@ -563,6 +615,67 @@ async function runTests() {
             "Failed to create booking",
         };
       } catch (error) {
+        // Handle duplicate key error - try with a different date
+        if (
+          error.response?.data?.error?.includes("E11000") ||
+          error.response?.data?.error?.includes("duplicate key") ||
+          error.message?.includes("E11000") ||
+          error.message?.includes("duplicate key")
+        ) {
+          // Retry with a different date (further in the future)
+          try {
+            const retryDate = new Date();
+            retryDate.setDate(
+              retryDate.getDate() + 150 + Math.floor(Math.random() * 30)
+            );
+            const retryDateStr = retryDate.toISOString().split("T")[0];
+
+            const retryResponse = await axios.post(
+              `${API_URL}/bookings`,
+              {
+                roomId: roomIdStr,
+                date: retryDateStr,
+              },
+              {
+                headers: { Authorization: `Bearer ${testData.userToken}` },
+                timeout: 120000,
+              }
+            );
+
+            const booking =
+              retryResponse.data.data?.booking ||
+              retryResponse.data.data ||
+              retryResponse.data.booking;
+            if (booking && booking._id) {
+              testData.bookingId = booking._id;
+              const price =
+                retryResponse.data.data?.priceBreakdown?.adjustedPrice ||
+                booking.totalPrice ||
+                booking.adjustedPrice ||
+                retryResponse.data.data?.adjustedPrice;
+              return {
+                success: true,
+                details: `Booking ID: ${testData.bookingId.substring(
+                  0,
+                  8
+                )}..., Price: $${
+                  price || "N/A"
+                } (retried with date: ${retryDateStr})`,
+              };
+            }
+          } catch (retryError) {
+            // If retry also fails, return the original error
+            const errorDetails =
+              error.response?.data?.error ||
+              error.response?.data?.message ||
+              error.message;
+            return {
+              success: false,
+              details: `Duplicate booking error (retry failed): ${errorDetails}`,
+            };
+          }
+        }
+
         const errorDetails =
           error.response?.data?.error ||
           error.response?.data?.message ||

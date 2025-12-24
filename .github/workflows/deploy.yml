@@ -61,6 +61,18 @@ jobs:
           npm ci || npm install
           npm test --if-present
 
+      - name: Test Notification Service
+        working-directory: ./services/notification-service
+        run: |
+          npm ci || npm install
+          npm test --if-present
+
+      - name: Test API Gateway
+        working-directory: ./services/api-gateway
+        run: |
+          npm ci || npm install
+          npm test --if-present
+
   # ==========================================
   # JOB 2: Build and Push to ECR
   # ==========================================
