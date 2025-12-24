@@ -101,7 +101,7 @@ async function runTests() {
   await testEndpoint('Register User', async () => {
     try {
       const response = await axios.post(
-        `${BASE_URL}/register`,
+        `${BASE_URL}/auth/register`,
         {
           email: testEmail,
           password: 'Test123!@#',
@@ -133,7 +133,7 @@ async function runTests() {
   await testEndpoint('Register Duplicate User (Validation)', async () => {
     try {
       await axios.post(
-        `${BASE_URL}/register`,
+        `${BASE_URL}/auth/register`,
         {
           email: testEmail,
           password: 'Test123!@#',
@@ -158,7 +158,7 @@ async function runTests() {
   await testEndpoint('Login User', async () => {
     try {
       const response = await axios.post(
-        `${BASE_URL}/login`,
+        `${BASE_URL}/auth/login`,
         {
           email: testEmail,
           password: 'Test123!@#'
@@ -182,7 +182,7 @@ async function runTests() {
   await testEndpoint('Login with Wrong Password (Validation)', async () => {
     try {
       await axios.post(
-        `${BASE_URL}/login`,
+        `${BASE_URL}/auth/login`,
         {
           email: testEmail,
           password: 'WrongPassword123!'
@@ -205,7 +205,7 @@ async function runTests() {
   if (userToken) {
     await testEndpoint('Get User Profile', async () => {
       try {
-        const response = await axios.get(`${BASE_URL}/me`, {
+        const response = await axios.get(`${BASE_URL}/auth/me`, {
           headers: { Authorization: `Bearer ${userToken}` },
           timeout: TEST_TIMEOUT
         });
@@ -227,7 +227,7 @@ async function runTests() {
   if (userToken) {
     await testEndpoint('Verify Token', async () => {
       try {
-        const response = await axios.get(`${BASE_URL}/verify`, {
+        const response = await axios.get(`${BASE_URL}/auth/verify`, {
           headers: { Authorization: `Bearer ${userToken}` },
           timeout: TEST_TIMEOUT
         });
@@ -248,7 +248,7 @@ async function runTests() {
   // Test 9: Verify Invalid Token
   await testEndpoint('Verify Invalid Token (Validation)', async () => {
     try {
-      await axios.get(`${BASE_URL}/verify`, {
+      await axios.get(`${BASE_URL}/auth/verify`, {
         headers: { Authorization: 'Bearer invalid-token-12345' },
         timeout: TEST_TIMEOUT
       });
@@ -268,7 +268,7 @@ async function runTests() {
   await testEndpoint('Register with Invalid Email (Validation)', async () => {
     try {
       await axios.post(
-        `${BASE_URL}/register`,
+        `${BASE_URL}/auth/register`,
         {
           email: 'invalid-email',
           password: 'Test123!@#',
