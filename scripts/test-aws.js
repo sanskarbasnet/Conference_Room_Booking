@@ -69,9 +69,29 @@ async function testEndpoint(name, testFn) {
  * @param {string} token - User authentication token
  * @returns {Promise<string|null>} - Available date string (YYYY-MM-DD) or null
  */
-async function findAvailableDate(roomId, token) {
+async function findAvailableDate(roomId, token, adminToken = null) {
   try {
-    // Check availability for a range of dates (60-120 days in future)
+    // First, try to get ALL bookings for this room (as admin) to see ALL booked dates
+    // This includes cancelled bookings which still block due to MongoDB unique index
+    let allBookedDates = [];
+
+    if (adminToken) {
+      try {
+        const allBookingsResponse = await axios.get(
+          `${API_URL}/bookings?roomId=${roomId}`,
+          {
+            headers: { Authorization: `Bearer ${adminToken}` },
+            timeout: 30000,
+          }
+        );
+        const allBookings = allBookingsResponse.data.data || [];
+        allBookedDates = allBookings.map((b) => b.bookingDate).filter(Boolean);
+      } catch (error) {
+        // If admin query fails, fall back to availability check
+      }
+    }
+
+    // Also check availability API (this only shows confirmed/completed, but it's a backup)
     const startDate = new Date();
     startDate.setDate(startDate.getDate() + 60);
     const endDate = new Date();
@@ -79,40 +99,66 @@ async function findAvailableDate(roomId, token) {
     const startDateStr = startDate.toISOString().split("T")[0];
     const endDateStr = endDate.toISOString().split("T")[0];
 
-    const availabilityResponse = await axios.get(
-      `${API_URL}/bookings/room/${roomId}/availability?startDate=${startDateStr}&endDate=${endDateStr}`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 30000,
-      }
-    );
+    try {
+      const availabilityResponse = await axios.get(
+        `${API_URL}/bookings/room/${roomId}/availability?startDate=${startDateStr}&endDate=${endDateStr}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 30000,
+        }
+      );
 
-    // Get booked dates
-    const bookedDates = availabilityResponse.data.bookedDates || [];
+      // Merge booked dates from both sources
+      const availabilityBookedDates =
+        availabilityResponse.data.bookedDates || [];
+      allBookedDates = [
+        ...new Set([...allBookedDates, ...availabilityBookedDates]),
+      ];
+    } catch (error) {
+      // If availability check fails, continue with what we have
+    }
 
-    // Find first available date in the range
+    // Find first available date in the range that's NOT in booked dates
     const checkDate = new Date(startDate);
     while (checkDate <= endDate) {
       const checkDateStr = checkDate.toISOString().split("T")[0];
-      if (!bookedDates.includes(checkDateStr)) {
+      if (!allBookedDates.includes(checkDateStr)) {
         return checkDateStr;
       }
       checkDate.setDate(checkDate.getDate() + 1);
     }
 
-    // If no available date found in range, use a date far in the future (180+ days)
+    // If no available date found in range, use a date far in the future with timestamp uniqueness
     const farFutureDate = new Date();
+    // Use timestamp to ensure uniqueness - add days based on current timestamp
+    const timestampDays = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
     farFutureDate.setDate(
-      farFutureDate.getDate() + 180 + Math.floor(Math.random() * 30)
+      farFutureDate.getDate() + 180 + (timestampDays % 365)
     );
-    return farFutureDate.toISOString().split("T")[0];
+
+    // Double-check this date isn't booked
+    const farFutureDateStr = farFutureDate.toISOString().split("T")[0];
+    if (!allBookedDates.includes(farFutureDateStr)) {
+      return farFutureDateStr;
+    }
+
+    // If even that's booked, keep incrementing until we find an available date
+    let safeDate = new Date(farFutureDate);
+    for (let i = 0; i < 365; i++) {
+      safeDate.setDate(safeDate.getDate() + 1);
+      const safeDateStr = safeDate.toISOString().split("T")[0];
+      if (!allBookedDates.includes(safeDateStr)) {
+        return safeDateStr;
+      }
+    }
+
+    // Last resort: use a very unique date
+    return farFutureDateStr;
   } catch (error) {
-    // If availability check fails, use a unique date based on timestamp
-    // This ensures we don't collide with existing bookings
+    // If everything fails, use a unique date based on timestamp
     const uniqueDate = new Date();
-    // Use timestamp-based offset to ensure uniqueness
     const timestampOffset = Math.floor(Date.now() / (1000 * 60 * 60 * 24)); // Days since epoch
-    uniqueDate.setDate(uniqueDate.getDate() + 60 + (timestampOffset % 30)); // 60-90 days with uniqueness
+    uniqueDate.setDate(uniqueDate.getDate() + 60 + (timestampOffset % 365)); // 60-425 days with uniqueness
     return uniqueDate.toISOString().split("T")[0];
   }
 }
@@ -488,66 +534,57 @@ async function runTests() {
   console.log("-".repeat(70).gray);
 
   // Clear all bookings (as admin) to ensure clean test state
+  // Note: MongoDB unique index prevents duplicate roomId/bookingDate, so we need to cancel ALL future bookings
   if (testData.adminToken) {
-    await testEndpoint("Clear All Bookings", async () => {
+    await testEndpoint("Clear All Future Bookings", async () => {
       try {
-        // Get all bookings (confirmed and completed - these block new bookings)
-        const bookingsResponse = await axios.get(
-          `${API_URL}/bookings?status=confirmed`,
-          {
-            headers: { Authorization: `Bearer ${testData.adminToken}` },
-            timeout: 30000,
-          }
-        );
+        // Get ALL bookings (not filtered by status) to catch all future bookings
+        const bookingsResponse = await axios.get(`${API_URL}/bookings`, {
+          headers: { Authorization: `Bearer ${testData.adminToken}` },
+          timeout: 30000,
+        });
 
-        const bookings = bookingsResponse.data.data || [];
+        const allBookings = bookingsResponse.data.data || [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
         let cancelledCount = 0;
         let skippedCount = 0;
+        let errorCount = 0;
 
-        // Cancel all confirmed bookings (completed bookings can't be cancelled, but they're in the past)
-        for (const booking of bookings) {
-          if (booking.status === "confirmed" && booking._id) {
+        // Cancel ALL future bookings (regardless of status) to free up dates
+        for (const booking of allBookings) {
+          if (booking._id) {
             try {
-              // Check if booking date is in the future (only cancel future bookings)
               const bookingDate = new Date(booking.bookingDate);
-              const today = new Date();
-              today.setHours(0, 0, 0, 0);
+              bookingDate.setHours(0, 0, 0, 0);
 
-              if (bookingDate >= today) {
-                await axios.delete(`${API_URL}/bookings/${booking._id}`, {
-                  headers: { Authorization: `Bearer ${testData.adminToken}` },
-                  timeout: 10000,
-                });
-                cancelledCount++;
+              // Only cancel future bookings (past bookings don't matter)
+              if (bookingDate >= today && booking.status !== "cancelled") {
+                try {
+                  await axios.delete(`${API_URL}/bookings/${booking._id}`, {
+                    headers: { Authorization: `Bearer ${testData.adminToken}` },
+                    timeout: 10000,
+                  });
+                  cancelledCount++;
+                } catch (deleteError) {
+                  // If delete fails, booking might already be cancelled or completed
+                  errorCount++;
+                }
               } else {
                 skippedCount++;
               }
             } catch (error) {
-              // If cancellation fails, continue (might already be cancelled or completed)
-              skippedCount++;
+              errorCount++;
             }
           }
         }
 
-        // Also get completed bookings to see total count
-        const completedResponse = await axios
-          .get(`${API_URL}/bookings?status=completed`, {
-            headers: { Authorization: `Bearer ${testData.adminToken}` },
-            timeout: 30000,
-          })
-          .catch(() => ({ data: { data: [] } }));
-
-        const completedCount = completedResponse.data.data?.length || 0;
-
         return {
           success: true,
           details: `Cancelled ${cancelledCount} future booking(s)${
-            skippedCount > 0 ? `, skipped ${skippedCount}` : ""
-          }${
-            completedCount > 0
-              ? `, ${completedCount} past booking(s) (ignored)`
-              : ""
-          }`,
+            skippedCount > 0 ? `, skipped ${skippedCount} past booking(s)` : ""
+          }${errorCount > 0 ? `, ${errorCount} error(s)` : ""}`,
         };
       } catch (error) {
         // If we can't get bookings, that's okay - might be empty or no access
@@ -703,7 +740,12 @@ async function runTests() {
 
       // Find an available date by checking room availability
       // This ensures we don't try to book a room that's already booked
-      const dateStr = await findAvailableDate(roomIdStr, testData.userToken);
+      // Pass admin token to get ALL bookings (including cancelled ones that still block due to unique index)
+      const dateStr = await findAvailableDate(
+        roomIdStr,
+        testData.userToken,
+        testData.adminToken
+      );
 
       try {
         const response = await axios.post(
