@@ -1,4 +1,11 @@
 {
+  "name": "conference-booking-system",
+  "version": "1.0.0",
+  "description": "Conference Room Booking Microservices System",
+  "scripts": {
+    "lint": "eslint services/**/*.js --ignore-pattern node_modules/",
+    "lint:fix": "eslint services/**/*.js --fix --ignore-pattern node_modules/"
+  },
   "dependencies": {
     "mongodb": "^7.0.0"
   },
