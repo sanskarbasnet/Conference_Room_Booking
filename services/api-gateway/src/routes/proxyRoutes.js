@@ -80,13 +80,48 @@ router.use(
 );
 
 // Weather Service Routes
+// Handle both direct service URLs and ALB URLs with path prefixes
+let weatherTarget = services.weather;
+let weatherPathRewrite = { '^/weather': '' }; // Default: remove /weather prefix
+
+// If the target URL is an ALB URL with /weather path, it would cause a routing loop
+// because /weather/* routes to API Gateway. We need to use /weather-service/* instead.
+if (weatherTarget.includes('elb.amazonaws.com') && weatherTarget.includes('/weather')) {
+  // ALB URL with /weather path - this would cause a loop since /weather/* routes to API Gateway
+  // Use /weather-service/* instead (direct service access via ALB)
+  // Path rewrite: /weather/forecast/... -> /weather-service/forecast/...
+  const baseAlbUrl = weatherTarget.split('/weather')[0];
+  weatherTarget = baseAlbUrl; // Use base ALB URL, we'll add /weather-service in path rewrite
+  weatherPathRewrite = { '^/weather': '/weather-service' }; // Change /weather to /weather-service
+} else if (weatherTarget.includes('/weather') && !weatherTarget.endsWith('/weather')) {
+  // URL has /weather in the middle but doesn't end with it - don't rewrite
+  weatherPathRewrite = {};
+} else {
+  // Direct service URL or base URL - remove /weather prefix
+  weatherPathRewrite = { '^/weather': '' };
+}
+
 router.use(
   '/weather',
   createProxyMiddleware({
-    target: services.weather,
+    target: weatherTarget,
     ...proxyOptions,
-    pathRewrite: {
-      '^/weather': '' // Remove /weather prefix
+    pathRewrite: weatherPathRewrite,
+    onProxyReq: (proxyReq, req, res) => {
+      // Enhanced logging for weather service
+      console.log(`[Gateway] ${req.method} ${req.path} → ${weatherTarget}${proxyReq.path}`);
+      // Call original onProxyReq if it exists
+      if (proxyOptions.onProxyReq) {
+        proxyOptions.onProxyReq(proxyReq, req, res);
+      }
+    },
+    onError: (err, req, res) => {
+      console.error(`[Gateway] Weather Service Error for ${req.path}:`, err.message);
+      console.error(`[Gateway] Target URL: ${weatherTarget}`);
+      console.error(`[Gateway] Path Rewrite:`, weatherPathRewrite);
+      console.error(`[Gateway] Error Code:`, err.code);
+      // Use the standard error handler
+      proxyOptions.onError(err, req, res);
     }
   })
 );
