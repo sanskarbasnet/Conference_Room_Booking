@@ -210,9 +210,11 @@ async function runTests() {
           timeout: TEST_TIMEOUT
         });
 
+        // Response structure: { success: true, data: { user: { email, ... } } }
+        const email = response.data.data?.user?.email;
         return {
-          success: response.data.data && response.data.data.email === testEmail,
-          details: `Email: ${response.data.data?.email || 'N/A'}`
+          success: response.data.success && email === testEmail,
+          details: `Email: ${email || 'N/A'}`
         };
       } catch (error) {
         if (error.code === 'ECONNREFUSED') {
