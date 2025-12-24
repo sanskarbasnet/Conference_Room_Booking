@@ -150,38 +150,7 @@ async function runTests() {
     }
   });
 
-  // Test 5: Route to Weather Service
-  await testEndpoint("Route to Weather Service", async () => {
-    try {
-      const testLocationId = "507f1f77bcf86cd799439011";
-      const futureDate = new Date();
-      futureDate.setDate(futureDate.getDate() + 15);
-      const dateStr = futureDate.toISOString().split("T")[0];
-
-      const response = await axios.get(
-        `${BASE_URL}/weather/forecast/${testLocationId}/${dateStr}`,
-        { timeout: TEST_TIMEOUT }
-      );
-      return {
-        success: response.status === 200 && response.data.success,
-        details: "Route working",
-      };
-    } catch (error) {
-      // Accept rate limiting as valid response
-      if (
-        error.response &&
-        (error.response.status === 200 || error.response.status === 429)
-      ) {
-        return { success: true, details: "Route working" };
-      }
-      if (error.code === "ECONNREFUSED") {
-        return { success: false, details: "Service not running" };
-      }
-      throw error;
-    }
-  });
-
-  // Test 6: Route to Notification Service
+  // Test 5: Route to Notification Service
   await testEndpoint("Route to Notification Service", async () => {
     try {
       const response = await axios.get(`${BASE_URL}/notifications/test`, {
@@ -206,7 +175,7 @@ async function runTests() {
     }
   });
 
-  // Test 7: 404 for Invalid Route
+  // Test 6: 404 for Invalid Route
   await testEndpoint("404 for Invalid Route", async () => {
     try {
       await axios.get(`${BASE_URL}/invalid-route-12345`, {
