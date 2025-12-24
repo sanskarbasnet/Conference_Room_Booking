@@ -46,9 +46,7 @@ router.use(
   createProxyMiddleware({
     target: services.auth,
     ...proxyOptions,
-    pathRewrite: {
-      '^/auth': '' // Remove /auth prefix when forwarding
-    },
+    // Don't remove /auth prefix - auth service expects /auth/verify, /auth/login, etc.
     timeout: 60000 // 60 second timeout for auth requests (bcrypt can be slow)
   })
 );
@@ -97,11 +95,12 @@ router.use(
 router.use(
   '/notifications',
   createProxyMiddleware({
-    // Use base URL (without /notification) since we'll add /notification in pathRewrite
-    target: services.notification.replace('/notification', '') || services.notification,
+    // Notification service URL should be base URL (e.g., http://notification-service:8005)
+    // We'll rewrite /notifications to /notification/test, /notification/notify, etc.
+    target: services.notification,
     ...proxyOptions,
     pathRewrite: {
-      '^/notifications': '/notification' // Convert /notifications to /notification for load balancer routing
+      '^/notifications': '/notification' // Convert /notifications to /notification
     }
   })
 );
