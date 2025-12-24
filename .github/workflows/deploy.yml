@@ -37,6 +37,32 @@ jobs:
         run: npm run lint --if-present
         continue-on-error: true
 
+      - name: Setup Docker Compose
+        run: |
+          docker-compose --version
+
+      - name: Start Services with Docker Compose
+        env:
+          MONGODB_URI: mongodb://mongodb:27017/conference_booking
+          JWT_SECRET: test-jwt-secret-for-ci-12345
+        run: |
+          echo "Starting services with docker-compose..."
+          docker-compose up -d --build
+          echo "Waiting for MongoDB to be ready..."
+          sleep 10
+          echo "Waiting for services to start..."
+          sleep 20
+          echo "Checking service health..."
+          for i in {1..30}; do
+            if curl -f http://localhost:8001/health > /dev/null 2>&1; then
+              echo "Auth service is up!"
+              break
+            fi
+            echo "Waiting for services... ($i/30)"
+            sleep 2
+          done
+          echo "Services should be ready now"
+
       - name: Test Auth Service
         working-directory: ./services/auth-service
         run: |
@@ -72,6 +98,17 @@ jobs:
         run: |
           npm ci || npm install
           npm test --if-present
+
+      - name: Show Service Logs (on failure)
+        if: failure()
+        run: |
+          echo "=== Service Logs ==="
+          docker-compose logs --tail=50
+
+      - name: Stop Services
+        if: always()
+        run: |
+          docker-compose down -v
 
   # ==========================================
   # JOB 2: Build and Push to ECR

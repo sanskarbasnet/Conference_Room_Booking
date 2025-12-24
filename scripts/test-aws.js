@@ -482,6 +482,144 @@ async function runTests() {
   }
 
   // ========================================
+  // 4.5. CLEANUP: Clear Bookings and Ensure Rooms Available
+  // ========================================
+  console.log("\n🧹 Test Environment Cleanup".yellow.bold);
+  console.log("-".repeat(70).gray);
+
+  // Clear all bookings (as admin) to ensure clean test state
+  if (testData.adminToken) {
+    await testEndpoint("Clear All Bookings", async () => {
+      try {
+        // Get all bookings (confirmed and completed - these block new bookings)
+        const bookingsResponse = await axios.get(
+          `${API_URL}/bookings?status=confirmed`,
+          {
+            headers: { Authorization: `Bearer ${testData.adminToken}` },
+            timeout: 30000,
+          }
+        );
+
+        const bookings = bookingsResponse.data.data || [];
+        let cancelledCount = 0;
+        let skippedCount = 0;
+
+        // Cancel all confirmed bookings (completed bookings can't be cancelled, but they're in the past)
+        for (const booking of bookings) {
+          if (booking.status === "confirmed" && booking._id) {
+            try {
+              // Check if booking date is in the future (only cancel future bookings)
+              const bookingDate = new Date(booking.bookingDate);
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+
+              if (bookingDate >= today) {
+                await axios.delete(`${API_URL}/bookings/${booking._id}`, {
+                  headers: { Authorization: `Bearer ${testData.adminToken}` },
+                  timeout: 10000,
+                });
+                cancelledCount++;
+              } else {
+                skippedCount++;
+              }
+            } catch (error) {
+              // If cancellation fails, continue (might already be cancelled or completed)
+              skippedCount++;
+            }
+          }
+        }
+
+        // Also get completed bookings to see total count
+        const completedResponse = await axios
+          .get(`${API_URL}/bookings?status=completed`, {
+            headers: { Authorization: `Bearer ${testData.adminToken}` },
+            timeout: 30000,
+          })
+          .catch(() => ({ data: { data: [] } }));
+
+        const completedCount = completedResponse.data.data?.length || 0;
+
+        return {
+          success: true,
+          details: `Cancelled ${cancelledCount} future booking(s)${
+            skippedCount > 0 ? `, skipped ${skippedCount}` : ""
+          }${
+            completedCount > 0
+              ? `, ${completedCount} past booking(s) (ignored)`
+              : ""
+          }`,
+        };
+      } catch (error) {
+        // If we can't get bookings, that's okay - might be empty or no access
+        if (
+          error.response &&
+          (error.response.status === 404 || error.response.status === 401)
+        ) {
+          return {
+            success: true,
+            details: "No bookings to clear or insufficient permissions",
+          };
+        }
+        return {
+          success: false,
+          details:
+            error.response?.data?.error ||
+            error.message ||
+            "Failed to clear bookings",
+        };
+      }
+    });
+  }
+
+  // Ensure all rooms are active
+  if (testData.adminToken) {
+    await testEndpoint("Ensure All Rooms Are Active", async () => {
+      try {
+        const roomsResponse = await axios.get(`${API_URL}/rooms`, {
+          timeout: 30000,
+        });
+
+        const rooms = roomsResponse.data.data || [];
+        let updatedCount = 0;
+
+        // Update any inactive rooms to active
+        for (const room of rooms) {
+          if (room._id && room.isActive === false) {
+            try {
+              await axios.put(
+                `${API_URL}/rooms/${room._id}`,
+                { isActive: true },
+                {
+                  headers: { Authorization: `Bearer ${testData.adminToken}` },
+                  timeout: 10000,
+                }
+              );
+              updatedCount++;
+            } catch (error) {
+              // Continue even if update fails
+            }
+          }
+        }
+
+        return {
+          success: true,
+          details: `All ${rooms.length} room(s) available${
+            updatedCount > 0 ? `, ${updatedCount} activated` : ""
+          }`,
+        };
+      } catch (error) {
+        return {
+          success: false,
+          details:
+            error.response?.data?.error ||
+            error.message ||
+            "Failed to check rooms",
+        };
+      }
+    });
+  }
+
+  // ========================================
   // 5. WEATHER TESTS
   // ========================================
   console.log("\n🌤️  Weather Tests".yellow.bold);

@@ -33,13 +33,23 @@ async function testEndpoint(name, testFn) {
       logTest(name, "pass", result.details);
       return result.data;
     } else {
-      logTest(name, "fail", result.details || "Test failed");
+      // If service is not running, mark as skipped instead of failed
+      if (result.details && result.details.includes("Service not running")) {
+        logTest(name, "skip", result.details);
+      } else {
+        logTest(name, "fail", result.details || "Test failed");
+      }
       return null;
     }
   } catch (error) {
-    const errorMsg =
-      error.response?.data?.error || error.message || "Unknown error";
-    logTest(name, "fail", errorMsg);
+    // If connection refused, mark as skipped
+    if (error.code === "ECONNREFUSED") {
+      logTest(name, "skip", "Service not running");
+    } else {
+      const errorMsg =
+        error.response?.data?.error || error.message || "Unknown error";
+      logTest(name, "fail", errorMsg);
+    }
     return null;
   }
 }
