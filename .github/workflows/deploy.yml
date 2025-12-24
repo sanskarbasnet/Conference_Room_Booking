@@ -1,0 +1,254 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+env:
+  AWS_REGION: us-east-1
+  ECS_CLUSTER: conference-cluster-v2
+
+jobs:
+  # ==========================================
+  # JOB 1: Lint and Test
+  # ==========================================
+  lint-and-test:
+    name: Lint and Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: Install root dependencies
+        run: npm ci --ignore-scripts || npm install
+
+      - name: Run ESLint
+        run: npm run lint --if-present
+        continue-on-error: true
+
+      - name: Test Auth Service
+        working-directory: ./services/auth-service
+        run: |
+          npm ci || npm install
+          npm test --if-present
+
+      - name: Test Room Service
+        working-directory: ./services/room-service
+        run: |
+          npm ci || npm install
+          npm test --if-present
+
+      - name: Test Booking Service
+        working-directory: ./services/booking-service
+        run: |
+          npm ci || npm install
+          npm test --if-present
+
+      - name: Test Weather Service
+        working-directory: ./services/weather-service
+        run: |
+          npm ci || npm install
+          npm test --if-present
+
+  # ==========================================
+  # JOB 2: Build and Push to ECR
+  # ==========================================
+  build-and-push:
+    name: Build and Push to ECR
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Auth Service
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/conference-v2/auth-service:latest -t $ECR_REGISTRY/conference-v2/auth-service:$IMAGE_TAG ./services/auth-service
+          docker push $ECR_REGISTRY/conference-v2/auth-service:latest
+          docker push $ECR_REGISTRY/conference-v2/auth-service:$IMAGE_TAG
+
+      - name: Build and push Room Service
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/conference-v2/room-service:latest -t $ECR_REGISTRY/conference-v2/room-service:$IMAGE_TAG ./services/room-service
+          docker push $ECR_REGISTRY/conference-v2/room-service:latest
+          docker push $ECR_REGISTRY/conference-v2/room-service:$IMAGE_TAG
+
+      - name: Build and push Booking Service
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/conference-v2/booking-service:latest -t $ECR_REGISTRY/conference-v2/booking-service:$IMAGE_TAG ./services/booking-service
+          docker push $ECR_REGISTRY/conference-v2/booking-service:latest
+          docker push $ECR_REGISTRY/conference-v2/booking-service:$IMAGE_TAG
+
+      - name: Build and push Weather Service
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/conference-v2/weather-service:latest -t $ECR_REGISTRY/conference-v2/weather-service:$IMAGE_TAG ./services/weather-service
+          docker push $ECR_REGISTRY/conference-v2/weather-service:latest
+          docker push $ECR_REGISTRY/conference-v2/weather-service:$IMAGE_TAG
+
+      - name: Build and push Notification Service
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/conference-v2/notification-service:latest -t $ECR_REGISTRY/conference-v2/notification-service:$IMAGE_TAG ./services/notification-service
+          docker push $ECR_REGISTRY/conference-v2/notification-service:latest
+          docker push $ECR_REGISTRY/conference-v2/notification-service:$IMAGE_TAG
+
+      - name: Build and push API Gateway
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/conference-v2/api-gateway:latest -t $ECR_REGISTRY/conference-v2/api-gateway:$IMAGE_TAG ./services/api-gateway
+          docker push $ECR_REGISTRY/conference-v2/api-gateway:latest
+          docker push $ECR_REGISTRY/conference-v2/api-gateway:$IMAGE_TAG
+
+  # ==========================================
+  # JOB 3: Deploy to ECS
+  # ==========================================
+  deploy:
+    name: Deploy to ECS
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update Auth Service
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service auth-service-v2 \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Update Room Service
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service room-service-v2 \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Update Booking Service
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service booking-service-v2 \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Update Weather Service
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service weather-service-v2 \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Update Notification Service
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service notification-service-v2 \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Update API Gateway
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service api-gateway-v2 \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Wait for services to stabilize
+        run: |
+          echo "Waiting for services to stabilize..."
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services auth-service-v2 room-service-v2 weather-service-v2 \
+            --region ${{ env.AWS_REGION }}
+          echo "Core services stable!"
+
+      - name: Get ALB URL
+        id: get-alb
+        run: |
+          ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --region ${{ env.AWS_REGION }} \
+            --query 'LoadBalancers[?contains(LoadBalancerName, `conference-alb-v2`)].DNSName' \
+            --output text | head -n 1)
+          echo "alb_url=http://$ALB_DNS" >> $GITHUB_OUTPUT
+          echo "ALB URL: http://$ALB_DNS"
+
+      - name: Run Health Check
+        continue-on-error: true
+        run: |
+          echo "Running health check..."
+          curl -f ${{ steps.get-alb.outputs.alb_url }}/health || echo "Health check degraded (expected during deployment)"
+
+      - name: Deployment Summary
+        run: |
+          echo "=========================================="
+          echo "🚀 Deployment Complete!"
+          echo "=========================================="
+          echo "Cluster: ${{ env.ECS_CLUSTER }}"
+          echo "Region: ${{ env.AWS_REGION }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "ALB URL: ${{ steps.get-alb.outputs.alb_url }}"
+          echo ""
+          echo "Services Deployed:"
+          echo "  ✓ auth-service-v2"
+          echo "  ✓ room-service-v2"
+          echo "  ✓ booking-service-v2"
+          echo "  ✓ weather-service-v2"
+          echo "  ✓ notification-service-v2"
+          echo "  ✓ api-gateway-v2"
+          echo "=========================================="

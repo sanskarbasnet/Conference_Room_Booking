@@ -1,0 +1,156 @@
+version: "3.8"
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: conference-booking-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=conference-booking
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - conference-network
+    restart: unless-stopped
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - NODE_ENV=production
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - ROOM_SERVICE_URL=http://room-service:8002
+      - BOOKING_SERVICE_URL=http://booking-service:8003
+      - WEATHER_SERVICE_URL=http://weather-service:8004
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8005
+      - RATE_LIMIT_WINDOW_MS=900000
+      - RATE_LIMIT_MAX_REQUESTS=100
+    depends_on:
+      - mongodb
+      - auth-service
+      - room-service
+      - booking-service
+      - weather-service
+      - notification-service
+    networks:
+      - conference-network
+    restart: unless-stopped
+
+  # Auth Service
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - PORT=8001
+      - NODE_ENV=production
+      - MONGODB_URI=${MONGODB_URI}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRE=7d
+    depends_on:
+      - mongodb
+    networks:
+      - conference-network
+    restart: unless-stopped
+
+  # Room Service
+  room-service:
+    build:
+      context: ./services/room-service
+      dockerfile: Dockerfile
+    ports:
+      - "8002:8002"
+    environment:
+      - PORT=8002
+      - NODE_ENV=production
+      - MONGODB_URI=${MONGODB_URI}
+      - AUTH_SERVICE_URL=http://auth-service:8001
+    depends_on:
+      - mongodb
+      - auth-service
+    networks:
+      - conference-network
+    restart: unless-stopped
+
+  # Booking Service
+  booking-service:
+    build:
+      context: ./services/booking-service
+      dockerfile: Dockerfile
+    ports:
+      - "8003:8003"
+    environment:
+      - PORT=8003
+      - NODE_ENV=production
+      - MONGODB_URI=${MONGODB_URI}
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - ROOM_SERVICE_URL=http://room-service:8002
+      - WEATHER_SERVICE_URL=http://weather-service:8004
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8005
+      - COMFORTABLE_TEMPERATURE=21
+      - PRICE_ADJUSTMENT_FACTOR=0.05
+    depends_on:
+      - mongodb
+      - auth-service
+      - room-service
+      - weather-service
+      - notification-service
+    networks:
+      - conference-network
+    restart: unless-stopped
+
+  # Weather Service
+  weather-service:
+    build:
+      context: ./services/weather-service
+      dockerfile: Dockerfile
+    ports:
+      - "8004:8004"
+    environment:
+      - PORT=8004
+      - NODE_ENV=production
+      - MONGODB_URI=${MONGODB_URI}
+      - MIN_TEMPERATURE=15
+      - MAX_TEMPERATURE=27
+      - COMFORTABLE_TEMPERATURE=21
+    depends_on:
+      - mongodb
+    networks:
+      - conference-network
+    restart: unless-stopped
+
+  # Notification Service
+  notification-service:
+    build:
+      context: ./services/notification-service
+      dockerfile: Dockerfile
+    ports:
+      - "8005:8005"
+    environment:
+      - PORT=8005
+      - NODE_ENV=production
+    networks:
+      - conference-network
+    restart: unless-stopped
+
+networks:
+  conference-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+    driver: local

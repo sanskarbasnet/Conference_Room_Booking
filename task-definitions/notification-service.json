@@ -1,0 +1,28 @@
+{
+    "family": "conference-notification-v2",
+    "networkMode": "awsvpc",
+    "requiresCompatibilities": ["FARGATE"],
+    "cpu": "256",
+    "memory": "512",
+    "executionRoleArn": "arn:aws:iam::997167341062:role/LabRole",
+    "taskRoleArn": "arn:aws:iam::997167341062:role/LabRole",
+    "containerDefinitions": [
+      {
+        "name": "notification-service",
+        "image": "997167341062.dkr.ecr.us-east-1.amazonaws.com/conference-v2/notification-service:latest",
+        "portMappings": [{"containerPort": 8005, "protocol": "tcp"}],
+        "environment": [
+          {"name": "PORT", "value": "8005"}
+        ],
+        "logConfiguration": {
+          "logDriver": "awslogs",
+          "options": {
+            "awslogs-group": "/ecs/conference-notification-v2",
+            "awslogs-region": "us-east-1",
+            "awslogs-stream-prefix": "ecs",
+            "awslogs-create-group": "true"
+          }
+        }
+      }
+    ]
+  }

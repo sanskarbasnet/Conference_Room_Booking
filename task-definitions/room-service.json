@@ -1,0 +1,29 @@
+{
+    "family": "conference-room-v2",
+    "networkMode": "awsvpc",
+    "requiresCompatibilities": ["FARGATE"],
+    "cpu": "256",
+    "memory": "512",
+    "executionRoleArn": "arn:aws:iam::997167341062:role/LabRole",
+    "taskRoleArn": "arn:aws:iam::997167341062:role/LabRole",
+    "containerDefinitions": [
+      {
+        "name": "room-service",
+        "image": "997167341062.dkr.ecr.us-east-1.amazonaws.com/conference-v2/room-service:latest",
+        "portMappings": [{"containerPort": 8002, "protocol": "tcp"}],
+        "environment": [
+          {"name": "PORT", "value": "8002"},
+          {"name": "MONGODB_URI", "value": "mongodb+srv://conferenceAdmin:vUIAzEKbHKAb6FrG@conference-booking-clus.m0nkkyl.mongodb.net/conference_booking?appName=conference-booking-cluster"}
+        ],
+        "logConfiguration": {
+          "logDriver": "awslogs",
+          "options": {
+            "awslogs-group": "/ecs/conference-room-v2",
+            "awslogs-region": "us-east-1",
+            "awslogs-stream-prefix": "ecs",
+            "awslogs-create-group": "true"
+          }
+        }
+      }
+    ]
+  }

@@ -1,0 +1,19 @@
+{
+  "name": "seed-scripts",
+  "version": "1.0.0",
+  "description": "Database seeding scripts for Conference Room Booking System",
+  "scripts": {
+    "seed": "node seed.js",
+    "test": "node test-system.js",
+    "test:quick": "node test-quick.js",
+    "test:generate": "node generate-test-data.js"
+  },
+  "dependencies": {
+    "mongoose": "^8.0.3",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.3.1",
+    "axios": "^1.6.2",
+    "colors": "^1.4.0"
+  }
+}
+

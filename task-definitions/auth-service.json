@@ -1,0 +1,30 @@
+{
+  "family": "conference-auth-v2",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::997167341062:role/LabRole",
+  "taskRoleArn": "arn:aws:iam::997167341062:role/LabRole",
+  "containerDefinitions": [
+    {
+      "name": "auth-service",
+      "image": "997167341062.dkr.ecr.us-east-1.amazonaws.com/conference-v2/auth-service:latest",
+      "portMappings": [{"containerPort": 8001, "protocol": "tcp"}],
+      "environment": [
+        {"name": "PORT", "value": "8001"},
+        {"name": "MONGODB_URI", "value": "mongodb+srv://conferenceAdmin:vUIAzEKbHKAb6FrG@conference-booking-clus.m0nkkyl.mongodb.net/conference_booking?appName=conference-booking-cluster"},
+        {"name": "JWT_SECRET", "value": "my-super-secret-jwt-key-change-in-production-12345"}
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/conference-auth-v2",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}
