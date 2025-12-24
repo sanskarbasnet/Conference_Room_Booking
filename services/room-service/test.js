@@ -115,12 +115,13 @@ async function runTests() {
     await testEndpoint('Get Location by ID', async () => {
       try {
         const response = await axios.get(`${BASE_URL}/locations/${locationId}`, { timeout: TEST_TIMEOUT });
-        // Convert both IDs to strings for comparison (MongoDB ObjectIds can be objects or strings)
-        const responseId = String(response.data.data?._id || '');
+        // Response structure: { success: true, data: { location: {...}, rooms: [...], roomCount: N } }
+        const location = response.data.data?.location || response.data.data; // Handle both structures
+        const responseId = String(location?._id || '');
         const expectedId = String(locationId);
         return {
-          success: response.data.success && response.data.data && responseId === expectedId,
-          details: response.data.data?.name || 'Location found'
+          success: response.data.success && location && responseId === expectedId,
+          details: location?.name || 'Location found'
         };
       } catch (error) {
         if (error.code === 'ECONNREFUSED') {
