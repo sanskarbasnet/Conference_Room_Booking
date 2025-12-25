@@ -18,7 +18,7 @@ const errorHandler = (err, req, res, next) => {
     return res.status(400).json({
       success: false,
       error: 'Duplicate Entry',
-      message: 'A forecast for this location and date already exists try changing the date'
+      message: 'A forecast for this location and date already exists try the date again'
     });
   }
 
